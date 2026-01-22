@@ -1,310 +1,339 @@
 import { createClient } from '@supabase/supabase-js';
+import 'react-native-url-polyfill/auto';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// IMPORTANT: Bu qiymatlarni Supabase Dashboard'dan olish kerak
-// 1. https://supabase.com/dashboard -> Your Project
-// 2. Settings -> API
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const createStorageAdapter = () => {
+  if (Platform.OS === 'web') {
+    return {
+      getItem: (key: string) => {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          return Promise.resolve(window.localStorage.getItem(key));
+        }
+        return Promise.resolve(null);
+      },
+      setItem: (key: string, value: string) => {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(key, value);
+          return Promise.resolve();
+        }
+        return Promise.resolve();
+      },
+      removeItem: (key: string) => {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem(key);
+          return Promise.resolve();
+        }
+        return Promise.resolve();
+      },
+    };
+  } else {
+    return AsyncStorage;
+  }
+};
 
-// Database types
-export interface Order {
-  id: string;
-  client_id: string;
-  category_id: string;
-  category_name: string;
-  location: string;
-  description: string;
-  images: string[];
-  status: 'pending' | 'accepted' | 'approved' | 'completed' | 'cancelled';
-  worker_id: string | null;
-  client_phone?: string;
-  created_at: string;
-  completed_at: string | null;
-}
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: createStorageAdapter() as any,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
 
-export interface Worker {
-  id: string;
-  user_id: string;
-  categories: string[];
-  is_online: boolean;
-  min_price: number;
-  max_price: number;
-  rating: number;
-  total_jobs: number;
-  created_at: string;
-  updated_at: string;
-}
+// =====================================================
+// TYPES
+// =====================================================
 
 export interface Category {
   id: string;
   name_uz: string;
   name_ru: string;
   icon: string;
-  is_active: boolean;
+  created_at: string;
 }
 
-/**
- * Worker Service - Ishchi profili bilan ishlash
- */
-export const workerService = {
-  // Ishchi profilini olish
-  async getWorkerProfile(userId: string): Promise<Worker | null> {
-    try {
-      const { data, error } = await supabase
-        .from('workers')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+export interface Worker {
+  id: string;
+  full_name: string;
+  phone: string;
+  rating: number;
+  completed_orders: number;
+  success_rate: number;
+  min_price: number;
+  max_price: number;
+  is_online: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error fetching worker profile:', error);
-      return null;
-    }
-  },
+export interface WorkerCategory {
+  id: string;
+  worker_id: string;
+  category_id: string;
+  created_at: string;
+}
 
-  // Ishchi profilini yaratish
-  async createWorkerProfile(userId: string): Promise<Worker | null> {
-    try {
-      const { data, error } = await supabase
-        .from('workers')
-        .insert({
-          user_id: userId,
-          categories: [],
-          is_online: false,
-          min_price: 200000,
-          max_price: 300000,
-          rating: 0,
-          total_jobs: 0,
-        })
-        .select()
-        .single();
+export interface Order {
+  id: string;
+  customer_id: string;
+  worker_id: string | null;
+  category_id: string;
+  title: string;
+  description: string;
+  location: string;
+  images: string[];
+  status: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'rejected';
+  customer_phone: string | null;
+  created_at: string;
+  updated_at: string;
+  category?: Category;
+}
 
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error creating worker profile:', error);
-      return null;
-    }
-  },
+// =====================================================
+// CATEGORIES
+// =====================================================
 
-  // Ishchi holatini yangilash (online/offline)
-  async updateOnlineStatus(workerId: string, isOnline: boolean): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('workers')
-        .update({ is_online: isOnline })
-        .eq('id', workerId);
+export async function getCategories() {
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .order('name_uz');
 
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error updating online status:', error);
-      return false;
-    }
-  },
+  if (error) throw error;
+  return data as Category[];
+}
 
-  // Ishchi kategoriyalarini yangilash
-  async updateCategories(workerId: string, categories: string[]): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('workers')
-        .update({ categories })
-        .eq('id', workerId);
+// =====================================================
+// WORKER PROFILE
+// =====================================================
 
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error updating categories:', error);
-      return false;
-    }
-  },
+export async function getCurrentWorker() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
 
-  // Narx oralig'ini yangilash
-  async updatePriceRange(workerId: string, minPrice: number, maxPrice: number): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('workers')
-        .update({ min_price: minPrice, max_price: maxPrice })
-        .eq('id', workerId);
+  const { data, error } = await supabase
+    .from('workers')
+    .select('*')
+    .eq('id', user.id)
+    .single();
 
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error updating price range:', error);
-      return false;
-    }
-  },
-};
+  if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
+  return data as Worker | null;
+}
 
-/**
- * Order Service - Buyurtmalar bilan ishlash
- */
-export const orderService = {
-  // Yangi buyurtmalarni olish (ishchi kategoriyalariga mos)
-  async getAvailableOrders(categories: string[]): Promise<Order[]> {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('status', 'pending')
-        .in('category_id', categories)
-        .order('created_at', { ascending: false });
+export async function createWorkerProfile(profile: {
+  full_name: string;
+  phone: string;
+  min_price?: number;
+  max_price?: number;
+}) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
 
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching available orders:', error);
-      return [];
-    }
-  },
+  const { data, error } = await supabase
+    .from('workers')
+    .insert({
+      id: user.id,
+      full_name: profile.full_name,
+      phone: profile.phone,
+      min_price: profile.min_price || 200000,
+      max_price: profile.max_price || 300000,
+    })
+    .select()
+    .single();
 
-  // Ishchi buyurtmalarini olish
-  async getWorkerOrders(workerId: string): Promise<Order[]> {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('worker_id', workerId)
-        .in('status', ['accepted', 'approved'])
-        .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as Worker;
+}
 
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching worker orders:', error);
-      return [];
-    }
-  },
+export async function updateWorkerProfile(updates: Partial<Worker>) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
 
-  // Tugallangan buyurtmalar (tarix)
-  async getCompletedOrders(workerId: string): Promise<Order[]> {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('worker_id', workerId)
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false })
-        .limit(50);
+  const { data, error } = await supabase
+    .from('workers')
+    .update(updates)
+    .eq('id', user.id)
+    .select()
+    .single();
 
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching completed orders:', error);
-      return [];
-    }
-  },
+  if (error) throw error;
+  return data as Worker;
+}
 
-  // Buyurtmani qabul qilish
-  async acceptOrder(orderId: string, workerId: string): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ 
-          status: 'accepted',
-          worker_id: workerId,
-        })
-        .eq('id', orderId)
-        .eq('status', 'pending'); // Faqat pending buyurtmalarni qabul qilish
+// =====================================================
+// WORKER CATEGORIES
+// =====================================================
 
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error accepting order:', error);
-      return false;
-    }
-  },
+export async function getWorkerCategories() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
 
-  // Buyurtmani rad etish
-  async rejectOrder(orderId: string): Promise<boolean> {
-    try {
-      // Buyurtma holatini o'zgartirmaymiz, faqat ishchi uchun yashiramiz
-      return true;
-    } catch (error) {
-      console.error('Error rejecting order:', error);
-      return false;
-    }
-  },
-
-  // Buyurtmani tugatish
-  async completeOrder(orderId: string): Promise<boolean> {
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ 
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', orderId);
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error completing order:', error);
-      return false;
-    }
-  },
-
-  // Real-time: Yangi buyurtmalarni tinglash
-  subscribeToNewOrders(categories: string[], callback: (order: Order) => void) {
-    return supabase
-      .channel('new-orders')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'orders',
-          filter: `category_id=in.(${categories.join(',')})`,
-        },
-        (payload) => {
-          callback(payload.new as Order);
-        }
+  const { data, error } = await supabase
+    .from('worker_categories')
+    .select(`
+      id,
+      category_id,
+      categories (
+        id,
+        name_uz,
+        name_ru,
+        icon
       )
-      .subscribe();
-  },
+    `)
+    .eq('worker_id', user.id);
 
-  // Real-time: Buyurtma holatini tinglash
-  subscribeToOrderStatus(orderId: string, callback: (order: Order) => void) {
-    return supabase
-      .channel(`order-${orderId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `id=eq.${orderId}`,
-        },
-        (payload) => {
-          callback(payload.new as Order);
-        }
+  if (error) throw error;
+  return data;
+}
+
+export async function setWorkerCategories(categoryIds: string[]) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Delete existing categories
+  await supabase
+    .from('worker_categories')
+    .delete()
+    .eq('worker_id', user.id);
+
+  // Insert new categories
+  if (categoryIds.length > 0) {
+    const { error } = await supabase
+      .from('worker_categories')
+      .insert(
+        categoryIds.map(categoryId => ({
+          worker_id: user.id,
+          category_id: categoryId,
+        }))
+      );
+
+    if (error) throw error;
+  }
+}
+
+// =====================================================
+// ORDERS
+// =====================================================
+
+export async function getAvailableOrders() {
+  const { data, error } = await supabase
+    .from('orders')
+    .select(`
+      *,
+      category:categories (
+        id,
+        name_uz,
+        name_ru,
+        icon
       )
-      .subscribe();
-  },
-};
+    `)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
 
-/**
- * Category Service - Kategoriyalar bilan ishlash
- */
-export const categoryService = {
-  // Barcha faol kategoriyalarni olish
-  async getActiveCategories(): Promise<Category[]> {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('is_active', true);
+  if (error) throw error;
+  return data as Order[];
+}
 
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      return [];
-    }
-  },
-};
+export async function getMyOrders() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select(`
+      *,
+      category:categories (
+        id,
+        name_uz,
+        name_ru,
+        icon
+      )
+    `)
+    .eq('worker_id', user.id)
+    .in('status', ['accepted', 'in_progress', 'completed'])
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data as Order[];
+}
+
+export async function acceptOrder(orderId: string) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({
+      worker_id: user.id,
+      status: 'accepted',
+    })
+    .eq('id', orderId)
+    .eq('status', 'pending')
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Order;
+}
+
+export async function rejectOrder(orderId: string) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ status: 'rejected' })
+    .eq('id', orderId)
+    .eq('worker_id', user.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Order;
+}
+
+export async function completeOrder(orderId: string) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ status: 'completed' })
+    .eq('id', orderId)
+    .eq('worker_id', user.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Order;
+}
+
+// =====================================================
+// REAL-TIME SUBSCRIPTIONS
+// =====================================================
+
+export function subscribeToOrders(
+  callback: (payload: any) => void
+) {
+  const channel = supabase
+    .channel('orders-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+      },
+      callback
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}

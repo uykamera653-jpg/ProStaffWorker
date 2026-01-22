@@ -1,149 +1,268 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { storage } from '../services/storage';
-import { Order, generateMockOrder } from '../services/mockData';
 import { notificationService } from '../services/notificationService';
+import * as supabaseService from '../services/supabaseService';
+import type { Category, Order, Worker } from '../services/supabaseService';
+
+interface CategoryDisplay {
+  id: string;
+  name: string;
+  icon: string;
+}
 
 interface WorkerContextType {
-  isOnline: boolean;
-  setIsOnline: (value: boolean) => void;
-  selectedCategories: string[];
-  setSelectedCategories: (categories: string[]) => void;
-  pendingOrders: Order[];
-  myOrders: Order[];
-  completedOrders: Order[];
-  acceptOrder: (orderId: string) => void;
-  rejectOrder: (orderId: string) => void;
-  completeOrder: (orderId: string) => void;
-  approveOrder: (orderId: string) => void;
+  // Profile
+  worker: Worker | null;
+  fullName: string;
+  phone: string;
+  rating: number;
+  completedOrders: number;
+  successRate: number;
   minPrice: number;
   maxPrice: number;
-  setMinPrice: (price: number) => void;
-  setMaxPrice: (price: number) => void;
+
+  // Categories
+  categories: CategoryDisplay[];
+  selectedCategories: string[];
+  setSelectedCategories: (categories: string[]) => void;
+
+  // Online status
+  isOnline: boolean;
+  setIsOnline: (value: boolean) => void;
+
+  // Orders
+  pendingOrders: Order[];
+  myOrders: Order[];
+  completedOrdersList: Order[];
+  acceptOrder: (orderId: string) => Promise<void>;
+  rejectOrder: (orderId: string) => void;
+  completeOrder: (orderId: string) => Promise<void>;
+
+  // Settings
+  minPrice: number;
+  maxPrice: number;
+  setMinPrice: (price: number) => Promise<void>;
+  setMaxPrice: (price: number) => Promise<void>;
   isDarkMode: boolean;
-  setIsDarkMode: (value: boolean) => void;
+  setIsDarkMode: (value: boolean) => Promise<void>;
   language: 'uz' | 'ru';
-  setLanguage: (lang: 'uz' | 'ru') => void;
-  rating: number;
+  setLanguage: (lang: 'uz' | 'ru') => Promise<void>;
+
+  // Loading
+  loading: boolean;
+  refreshData: () => Promise<void>;
   totalEarnings: number;
 }
 
 export const WorkerContext = createContext<WorkerContextType | undefined>(undefined);
 
 export function WorkerProvider({ children }: { children: ReactNode }) {
-  const [isOnline, setIsOnlineState] = useState(false);
+  // Profile state
+  const [worker, setWorker] = useState<Worker | null>(null);
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [rating, setRating] = useState(0);
+  const [completedOrders, setCompletedOrders] = useState(0);
+  const [successRate, setSuccessRate] = useState(0);
+  const [minPriceState, setMinPriceState] = useState(200000);
+  const [maxPriceState, setMaxPriceState] = useState(300000);
+
+  // Categories
+  const [categories, setCategories] = useState<CategoryDisplay[]>([]);
   const [selectedCategories, setSelectedCategoriesState] = useState<string[]>([]);
+
+  // Online status
+  const [isOnline, setIsOnlineState] = useState(false);
+
+  // Orders
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
   const [myOrders, setMyOrders] = useState<Order[]>([]);
-  const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
-  const [minPrice, setMinPriceState] = useState(200000);
-  const [maxPrice, setMaxPriceState] = useState(300000);
+  const [completedOrdersList, setCompletedOrdersList] = useState<Order[]>([]);
+
+  // Settings
   const [isDarkMode, setIsDarkModeState] = useState(false);
   const [language, setLanguageState] = useState<'uz' | 'ru'>('uz');
-  const [rating] = useState(4.8);
 
-  const totalEarnings = completedOrders.length * 250000;
+  // Loading
+  const [loading, setLoading] = useState(true);
 
+  const totalEarnings = completedOrdersList.length * 250000;
+
+  // Load initial data
   useEffect(() => {
     loadSettings();
+    loadInitialData();
     notificationService.requestPermissions();
   }, []);
 
+  // Real-time orders subscription
   useEffect(() => {
-    if (isOnline && selectedCategories.length > 0) {
-      const interval = setInterval(() => {
-        if (myOrders.filter(o => o.status === 'accepted' || o.status === 'approved').length === 0) {
-          const randomCategory = selectedCategories[Math.floor(Math.random() * selectedCategories.length)];
-          const categoryData = [
-            { id: '1', name: 'Qurilish ishlari' },
-            { id: '2', name: 'Universal ishchi' },
-            { id: '3', name: 'Buzish ishlari' },
-            { id: '4', name: 'Yuk ortish/tushirish' },
-          ].find(c => c.id === randomCategory);
-          
-          if (categoryData && Math.random() > 0.5) {
-            const newOrder = generateMockOrder(categoryData.id, categoryData.name);
-            setPendingOrders(prev => [newOrder, ...prev]);
-            notificationService.scheduleOrderNotification(categoryData.name, newOrder.location);
-          }
-        }
-      }, 10000);
+    if (!worker || !isOnline) return;
 
-      return () => clearInterval(interval);
-    }
-  }, [isOnline, selectedCategories, myOrders]);
+    const unsubscribe = supabaseService.subscribeToOrders(async (payload) => {
+      console.log('Order change:', payload);
+      
+      if (payload.eventType === 'INSERT' && payload.new.status === 'pending') {
+        // New order - check if it matches worker categories
+        const workerCategories = await supabaseService.getWorkerCategories();
+        const categoryIds = workerCategories.map((wc: any) => wc.category_id);
+        
+        if (categoryIds.includes(payload.new.category_id)) {
+          // Send notification
+          await notificationService.scheduleOrderNotification(
+            payload.new.title,
+            payload.new.location
+          );
+          // Refresh available orders
+          loadAvailableOrders();
+        }
+      } else if (payload.eventType === 'UPDATE' && payload.new.worker_id === worker.id) {
+        // Order updated for this worker
+        if (payload.new.status === 'accepted') {
+          await notificationService.scheduleApprovalNotification(payload.new.title);
+        }
+        loadMyOrders();
+        loadAvailableOrders();
+      }
+    });
+
+    return unsubscribe;
+  }, [worker, isOnline]);
 
   const loadSettings = async () => {
     const settings = await storage.getItem<any>('workerSettings');
     if (settings) {
-      setMinPriceState(settings.minPrice || 200000);
-      setMaxPriceState(settings.maxPrice || 300000);
       setIsDarkModeState(settings.isDarkMode || false);
       setLanguageState(settings.language || 'uz');
     }
   };
 
-  const setIsOnline = (value: boolean) => {
-    setIsOnlineState(value);
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load categories
+      const cats = await supabaseService.getCategories();
+      setCategories(
+        cats.map((c) => ({
+          id: c.id,
+          name: language === 'uz' ? c.name_uz : c.name_ru,
+          icon: c.icon,
+        }))
+      );
+
+      // Load worker profile
+      const workerData = await supabaseService.getCurrentWorker();
+      if (workerData) {
+        setWorker(workerData);
+        setFullName(workerData.full_name);
+        setPhone(workerData.phone);
+        setRating(workerData.rating);
+        setCompletedOrders(workerData.completed_orders);
+        setSuccessRate(workerData.success_rate);
+        setMinPriceState(workerData.min_price);
+        setMaxPriceState(workerData.max_price);
+        setIsOnlineState(workerData.is_online);
+
+        // Load worker categories
+        const workerCats = await supabaseService.getWorkerCategories();
+        setSelectedCategoriesState(workerCats.map((wc: any) => wc.category_id));
+
+        // Load orders
+        await loadAvailableOrders();
+        await loadMyOrders();
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAvailableOrders = async () => {
+    try {
+      const orders = await supabaseService.getAvailableOrders();
+      setPendingOrders(orders);
+    } catch (error) {
+      console.error('Error loading available orders:', error);
+    }
+  };
+
+  const loadMyOrders = async () => {
+    try {
+      const orders = await supabaseService.getMyOrders();
+      const active = orders.filter(o => o.status !== 'completed');
+      const completed = orders.filter(o => o.status === 'completed');
+      setMyOrders(active);
+      setCompletedOrdersList(completed);
+    } catch (error) {
+      console.error('Error loading my orders:', error);
+    }
+  };
+
+  const refreshData = async () => {
+    await loadInitialData();
+  };
+
+  const setIsOnline = async (online: boolean) => {
+    try {
+      if (worker) {
+        await supabaseService.updateWorkerProfile({ is_online: online });
+        setIsOnlineState(online);
+
+        if (online) {
+          await supabaseService.setWorkerCategories(selectedCategories);
+          await loadAvailableOrders();
+        } else {
+          setPendingOrders([]);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating online status:', error);
+    }
   };
 
   const setSelectedCategories = (categories: string[]) => {
     setSelectedCategoriesState(categories);
   };
 
-  const acceptOrder = (orderId: string) => {
-    const order = pendingOrders.find(o => o.id === orderId);
-    if (order) {
-      const updatedOrder = { ...order, status: 'accepted' as const };
-      setPendingOrders(prev => prev.filter(o => o.id !== orderId));
-      setMyOrders(prev => [updatedOrder, ...prev]);
-      setIsOnlineState(false);
-      
-      setTimeout(() => {
-        approveOrder(orderId);
-        notificationService.scheduleApprovalNotification(order.categoryName);
-      }, 3000);
+  const handleAcceptOrder = async (orderId: string) => {
+    try {
+      await supabaseService.acceptOrder(orderId);
+      await loadAvailableOrders();
+      await loadMyOrders();
+      await setIsOnline(false);
+    } catch (error) {
+      console.error('Error accepting order:', error);
     }
   };
 
-  const rejectOrder = (orderId: string) => {
-    setPendingOrders(prev => prev.filter(o => o.id !== orderId));
+  const handleRejectOrder = (orderId: string) => {
+    setPendingOrders(pendingOrders.filter(o => o.id !== orderId));
   };
 
-  const approveOrder = (orderId: string) => {
-    setMyOrders(prev =>
-      prev.map(o =>
-        o.id === orderId
-          ? {
-              ...o,
-              status: 'approved' as const,
-              clientName: 'Alisher Karimov',
-              clientPhone: '+998901234567',
-            }
-          : o
-      )
-    );
-  };
-
-  const completeOrder = (orderId: string) => {
-    const order = myOrders.find(o => o.id === orderId);
-    if (order) {
-      const completedOrder = { ...order, status: 'completed' as const, completedAt: new Date() };
-      setMyOrders(prev => prev.filter(o => o.id !== orderId));
-      setCompletedOrders(prev => [completedOrder, ...prev]);
-      setIsOnlineState(true);
+  const handleCompleteOrder = async (orderId: string) => {
+    try {
+      await supabaseService.completeOrder(orderId);
+      await loadMyOrders();
+      await setIsOnline(true);
+    } catch (error) {
+      console.error('Error completing order:', error);
     }
   };
 
   const setMinPrice = async (price: number) => {
     setMinPriceState(price);
-    const settings = await storage.getItem<any>('workerSettings') || {};
-    await storage.setItem('workerSettings', { ...settings, minPrice: price });
+    if (worker) {
+      await supabaseService.updateWorkerProfile({ min_price: price });
+    }
   };
 
   const setMaxPrice = async (price: number) => {
     setMaxPriceState(price);
-    const settings = await storage.getItem<any>('workerSettings') || {};
-    await storage.setItem('workerSettings', { ...settings, maxPrice: price });
+    if (worker) {
+      await supabaseService.updateWorkerProfile({ max_price: price });
+    }
   };
 
   const setIsDarkMode = async (value: boolean) => {
@@ -161,26 +280,35 @@ export function WorkerProvider({ children }: { children: ReactNode }) {
   return (
     <WorkerContext.Provider
       value={{
-        isOnline,
-        setIsOnline,
+        worker,
+        fullName,
+        phone,
+        rating,
+        completedOrders,
+        successRate,
+        minPrice: minPriceState,
+        maxPrice: maxPriceState,
+        categories,
         selectedCategories,
         setSelectedCategories,
+        isOnline,
+        setIsOnline,
         pendingOrders,
         myOrders,
-        completedOrders,
-        acceptOrder,
-        rejectOrder,
-        completeOrder,
-        approveOrder,
-        minPrice,
-        maxPrice,
+        completedOrdersList,
+        acceptOrder: handleAcceptOrder,
+        rejectOrder: handleRejectOrder,
+        completeOrder: handleCompleteOrder,
+        minPrice: minPriceState,
+        maxPrice: maxPriceState,
         setMinPrice,
         setMaxPrice,
         isDarkMode,
         setIsDarkMode,
         language,
         setLanguage,
-        rating,
+        loading,
+        refreshData,
         totalEarnings,
       }}
     >

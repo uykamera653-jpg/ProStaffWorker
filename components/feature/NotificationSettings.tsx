@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, Platform, Linking, Modal, Pressable } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { notificationService } from '../../services/notificationService';
 import { colors, spacing, typography } from '../../constants/theme';
@@ -13,6 +13,7 @@ export function NotificationSettings({ isDarkMode, language }: NotificationSetti
   const [enabled, setEnabled] = useState(false);
   const [sound, setSound] = useState(true);
   const [vibration, setVibration] = useState(true);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   const surface = isDarkMode ? colors.surfaceDark : colors.surface;
   const text = isDarkMode ? colors.textDark : colors.text;
@@ -32,31 +33,44 @@ export function NotificationSettings({ isDarkMode, language }: NotificationSetti
       const granted = await notificationService.requestPermissions();
       setEnabled(granted);
       if (!granted) {
-        // iOS va Android uchun permission warning
-        const title = language === 'uz' ? 'Ruxsat berilmadi' : 'Разрешение не предоставлено';
-        const message =
-          language === 'uz'
-            ? 'Bildirishnomalar uchun ruxsat berilmadi. Sozlamalarga o\'tib ruxsat bering.'
-            : 'Разрешение на уведомления не предоставлено. Перейдите в настройки и предоставьте разрешение.';
-        const settingsText = language === 'uz' ? 'Sozlamalar' : 'Настройки';
-        const cancelText = language === 'uz' ? 'Bekor qilish' : 'Отмена';
+        // Web platformada custom modal, mobile'da Alert
+        if (Platform.OS === 'web') {
+          setShowPermissionModal(true);
+        } else {
+          const title = language === 'uz' ? 'Ruxsat berilmadi' : 'Разрешение не предоставлено';
+          const message =
+            language === 'uz'
+              ? 'Bildirishnomalar uchun ruxsat berilmadi. Sozlamalarga o\'tib ruxsat bering.'
+              : 'Разрешение на уведомления не предоставлено. Перейдите в настройки и предоставьте разрешение.';
+          const settingsText = language === 'uz' ? 'Sozlamalar' : 'Настройки';
+          const cancelText = language === 'uz' ? 'Bekor qilish' : 'Отмена';
 
-        Alert.alert(title, message, [
-          { text: cancelText, style: 'cancel' },
-          {
-            text: settingsText,
-            onPress: () => {
-              if (Platform.OS === 'ios') {
-                Linking.openURL('app-settings:');
-              } else {
-                Linking.openSettings();
-              }
+          Alert.alert(title, message, [
+            { text: cancelText, style: 'cancel' },
+            {
+              text: settingsText,
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              },
             },
-          },
-        ]);
+          ]);
+        }
       }
     } else {
       setEnabled(false);
+    }
+  };
+
+  const handleOpenSettings = () => {
+    setShowPermissionModal(false);
+    if (Platform.OS === 'ios') {
+      Linking.openURL('app-settings:');
+    } else if (Platform.OS === 'android') {
+      Linking.openSettings();
     }
   };
 
@@ -131,6 +145,41 @@ export function NotificationSettings({ isDarkMode, language }: NotificationSetti
           </TouchableOpacity>
         </>
       )}
+
+      {/* Web platform uchun permission modal */}
+      {Platform.OS === 'web' && (
+        <Modal
+          visible={showPermissionModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowPermissionModal(false)}
+        >
+          <Pressable 
+            style={styles.modalOverlay}
+            onPress={() => setShowPermissionModal(false)}
+          >
+            <Pressable style={[styles.modalContent, { backgroundColor: surface }]}>
+              <MaterialIcons name="notifications-off" size={48} color={colors.warning} />
+              <Text style={[styles.modalTitle, { color: text }]}>
+                {language === 'uz' ? 'Ruxsat berilmadi' : 'Разрешение не предоставлено'}
+              </Text>
+              <Text style={[styles.modalMessage, { color: textSecondary }]}>
+                {language === 'uz'
+                  ? 'Bildirishnomalar uchun ruxsat berilmadi. Brauzer sozlamalaridan ruxsat bering.'
+                  : 'Разрешение на уведомления не предоставлено. Предоставьте разрешение в настройках браузера.'}
+              </Text>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                onPress={() => setShowPermissionModal(false)}
+              >
+                <Text style={styles.modalButtonText}>
+                  {language === 'uz' ? 'Tushunarli' : 'Понятно'}
+                </Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -179,5 +228,48 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalContent: {
+    borderRadius: 16,
+    padding: spacing.xl,
+    alignItems: 'center',
+    maxWidth: 400,
+    width: '100%',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  modalTitle: {
+    ...typography.h3,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  modalButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    borderRadius: 8,
+    minWidth: 120,
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

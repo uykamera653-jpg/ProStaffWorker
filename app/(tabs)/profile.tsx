@@ -2,13 +2,17 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useWorker } from '../../hooks/useWorker';
+import { useAuth } from '../../hooks/useAuth';
 import { colors, spacing, typography } from '../../constants/theme';
 import { config } from '../../constants/config';
 import { RatingCard, PriceRangePicker, NotificationSettings } from '../../components';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { signOut } = useAuth();
   const { 
     isDarkMode, 
     setIsDarkMode, 
@@ -21,6 +25,11 @@ export default function ProfileScreen() {
     rating,
     completedOrders,
   } = useWorker();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace('/login');
+  };
 
   const bg = isDarkMode ? colors.backgroundDark : colors.background;
   const surface = isDarkMode ? colors.surfaceDark : colors.surface;
@@ -106,6 +115,16 @@ export default function ProfileScreen() {
             <Text style={[styles.phoneNumber, { color: colors.success }]}>
               {config.callCenter}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={handleSignOut}>
+            <View style={styles.settingLeft}>
+              <MaterialIcons name="logout" size={24} color={colors.error} />
+              <Text style={[styles.settingText, { color: colors.error }]}>
+                {language === 'uz' ? 'Chiqish' : 'Выйти'}
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={textSecondary} />
           </TouchableOpacity>
         </View>
 

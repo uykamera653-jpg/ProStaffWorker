@@ -31,6 +31,34 @@ if (Platform.OS === 'android') {
 
 export const notificationService = {
   async requestPermissions(): Promise<boolean> {
+    // Web platformada native browser API ishlatish
+    if (Platform.OS === 'web') {
+      if (!('Notification' in window)) {
+        console.log('Browser does not support notifications');
+        return false;
+      }
+
+      // Hozirgi permission holatini tekshirish
+      if (Notification.permission === 'granted') {
+        return true;
+      }
+
+      if (Notification.permission === 'denied') {
+        console.log('Notification permission denied');
+        return false;
+      }
+
+      // Permission so'rash (browser native dialog)
+      try {
+        const permission = await Notification.requestPermission();
+        return permission === 'granted';
+      } catch (error) {
+        console.error('Error requesting notification permission:', error);
+        return false;
+      }
+    }
+
+    // Mobile platforms (iOS/Android)
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     

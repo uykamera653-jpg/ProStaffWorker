@@ -30,6 +30,15 @@ export function NotificationSettings({ isDarkMode, language }: NotificationSetti
 
   const handleToggleEnabled = async (value: boolean) => {
     if (value) {
+      // Web platformada permission statusini tekshirish
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'denied') {
+          // Agar permission bloklangan bo'lsa - darhol modal ko'rsatish
+          setShowPermissionModal(true);
+          return;
+        }
+      }
+
       const granted = await notificationService.requestPermissions();
       setEnabled(granted);
       if (!granted) {
@@ -165,8 +174,13 @@ export function NotificationSettings({ isDarkMode, language }: NotificationSetti
               </Text>
               <Text style={[styles.modalMessage, { color: textSecondary }]}>
                 {language === 'uz'
-                  ? 'Bildirishnomalar uchun ruxsat berilmadi. Brauzer sozlamalaridan ruxsat bering.'
-                  : 'Разрешение на уведомления не предоставлено. Предоставьте разрешение в настройках браузера.'}
+                  ? 'Bildirishnomalar bloklangan. Brauzer URL panelida qulf belgisini bosing va bildirishnomalarni yoqing.'
+                  : 'Уведомления заблокированы. Нажмите значок замка в адресной строке браузера и включите уведомления.'}
+              </Text>
+              <Text style={[styles.modalInstructions, { color: textSecondary }]}>
+                {language === 'uz'
+                  ? '🔒 Manzil satri → Sozlamalar → Bildirishnomalar → Ruxsat berish'
+                  : '🔒 Адресная строка → Настройки → Уведомления → Разрешить'}
               </Text>
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: colors.primary }]}
@@ -258,7 +272,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  modalInstructions: {
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
     marginBottom: spacing.lg,
+    fontWeight: '500',
   },
   modalButton: {
     paddingVertical: spacing.sm,

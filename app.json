@@ -40,6 +40,16 @@
           "backgroundColor": "#ffffff"
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo.png",
+          "color": "#2196F3",
+          "sounds": ["./assets/notification.wav"],
+          "androidMode": "default",
+          "androidCollapsedTitle": "ProStaff Worker"
+        }
+      ],
       "expo-web-browser"
     ],
     "experiments": {

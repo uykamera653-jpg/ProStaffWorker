@@ -1,75 +1,221 @@
-# Welcome to OnSpace AI
+# ProStaff Worker - Ishchilar Ilovasi
 
-Onspace AI empowers anyone to turn ideas into powerful AI applications in minutes—no coding required. Our free, no-code platform enables effortless creation of custom AI apps; simply describe your vision and our agentic AI handles the rest. The onspace-app, built with React Native and Expo, demonstrates this capability—integrating popular third-party libraries to deliver seamless cross-platform performance across iOS, Android, and Web environments.
+ProStaff Worker - bu ishchilar uchun buyurtmalarni qabul qilish, boshqarish va bajarish ilovasi.
 
-## Getting Started
+## 🚀 Xususiyatlar
 
-### 1. Install Dependencies
+### ✅ Asosiy Funksiyalar
+- 🔐 Kategoriya tanlash va online/offline rejimi
+- 📱 Real-time buyurtma push bildirishnomalari
+- 📋 Buyurtmalarni qabul qilish/rad etish
+- ✅ Ishni tugatish va tarix
+- 💰 Narx oralig'ini sozlash (200,000 - 300,000)
+- ⭐ Reyting va statistika
+- 🌓 Tungi/Kunduzgi rejim
+- 🌍 Til almashtirish (O'zbekcha/Русский)
+- 🔔 Push bildirishnomalar sozlamalari
+
+### 🎨 Kategoriyalar
+1. **Buzish** (Demolition)
+2. **Qurish** (Construction)
+3. **Yuk ortish** (Loading)
+4. **Yuk tushirish** (Unloading)
+
+## 📱 Ekranlar
+
+### 1. Asosiy Ekran (`index.tsx`)
+- Online/Offline holat ko'rsatkich
+- Kategoriya tanlash tugmasi
+- Faol buyurtma (agar mavjud bo'lsa)
+- Yangi buyurtmalar ro'yxati
+
+### 2. Buyurtmalar (`orders.tsx`)
+- Qabul qilingan buyurtmalar
+- Tasdiqlangan ishlar
+- Buyurtma tafsilotlari
+
+### 3. Tarix (`history.tsx`)
+- Tugallangan buyurtmalar
+- Daromad statistikasi
+
+### 4. Profil (`profile.tsx`)
+- Reyting ko'rsatkichi
+- Narx oralig'i sozlamalari
+- Push bildirishnomalar sozlamalari
+- Til va rejim sozlamalari
+- Call Center aloqa
+
+## 🛠️ Texnologiyalar
+
+- **Framework**: React Native + Expo
+- **Routing**: Expo Router
+- **State Management**: React Context API
+- **Backend**: Supabase
+- **Notifications**: Expo Notifications
+- **UI**: React Native Paper
+- **Icons**: @expo/vector-icons
+- **Storage**: AsyncStorage
+
+## 📦 O'rnatish
 
 ```bash
+# Dependencies o'rnatish
 npm install
-# or
-yarn install
+
+# Ilovani ishga tushirish
+npm start
+
+# iOS
+npm run ios
+
+# Android
+npm run android
+
+# Web
+npm run web
 ```
 
-### 2. Start the Project
+## 🔧 Konfiguratsiya
 
-- Start the development server (choose your platform):
+### Environment Variables
 
-```bash
-npm run start         # Start Expo development server
-npm run android       # Launch Android emulator
-npm run ios           # Launch iOS simulator
-npm run web           # Start the web version
+`.env` faylini yarating:
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-- Reset the project (clear cache, etc.):
+### Supabase Setup
 
-```bash
-npm run reset-project
+Batafsil ko'rsatma uchun `INTEGRATION_GUIDE.md` faylini o'qing.
+
+## 📂 Loyiha Strukturasi
+
+```
+├── app/                      # Expo Router pages
+│   ├── (tabs)/              # Tab navigation screens
+│   │   ├── index.tsx        # Asosiy ekran
+│   │   ├── orders.tsx       # Buyurtmalar
+│   │   ├── history.tsx      # Tarix
+│   │   └── profile.tsx      # Profil
+│   └── order/[id].tsx       # Buyurtma tafsilotlari
+├── components/              # React components
+│   ├── feature/            # Feature-specific components
+│   └── ui/                 # Reusable UI components
+├── services/               # Business logic
+│   ├── supabaseService.ts  # Backend integration
+│   ├── notificationService.ts
+│   └── mockData.ts         # Test data
+├── contexts/               # Global state
+│   └── WorkerContext.tsx
+├── hooks/                  # Custom hooks
+│   └── useWorker.tsx
+└── constants/              # Configuration
+    ├── theme.ts            # Design tokens
+    ├── translations.ts     # Localization
+    └── config.ts           # App config
 ```
 
-### 3. Lint the Code
+## 🔄 Workflow
 
-```bash
-npm run lint
+### Ishchi Workflow
+1. **Kategoriya tanlash** → Online bo'lish
+2. **Yangi buyurtma keladi** → Push notification
+3. **Buyurtmani ko'rish** → Rasm, manzil, tavsif
+4. **Qabul qilish** → "Tasdiqlash jarayonida..."
+5. **Mijoz tasdiqlaydi** → Status: "Tasdiqlandi" + telefon raqami ko'rinadi
+6. **Ishni bajarish** → "Ishni tugatdim" tugmasini bosish
+7. **Tugallash** → Avtomatik online rejimga qaytish
+
+### Status'lar
+- `pending` - Yangi buyurtma
+- `accepted` - Ishchi qabul qildi (tasdiqlash kutilmoqda)
+- `approved` - Mijoz tasdiqladi
+- `completed` - Ish tugallandi
+- `cancelled` - Bekor qilindi
+
+## 🔔 Push Notifications
+
+### Test Bildirishnoma
+Profil → Bildirishnomalar → "Test bildirishnoma" tugmasi
+
+### Production
+- Expo push notification service ishlatiladi
+- Supabase Edge Function orqali yuboriladi
+- Real-time yangi buyurtmalar haqida xabar beradi
+
+## 🌐 ProStaff Mijozlar Ilovasi bilan Integratsiya
+
+### Integratsiya Qilish
+1. Supabase loyihasini sozlang
+2. Database schema'ni yarating (`INTEGRATION_GUIDE.md`)
+3. `.env` fayllarni ikkala ilovada ham to'ldiring
+4. Real-time subscriptions tekshiring
+5. Push notifications sozlang
+
+### Ma'lumot Oqimi
+```
+Mijoz → Buyurtma yaratish → Supabase DB
+                               ↓
+                    Ishchiga push notification
+                               ↓
+                    Ishchi qabul qiladi
+                               ↓
+                    Mijozga status yangilanishi
 ```
 
-## Main Dependencies
+## 🎨 Dizayn
 
-- React Native: 0.79.4
-- React: 19.0.0
-- Expo: ~53.0.12
-- Expo Router: ~5.1.0
-- Supabase: ^2.50.0
-- Other commonly used libraries:  
-  - @expo/vector-icons  
-  - react-native-paper  
-  - react-native-calendars  
-  - lottie-react-native  
-  - react-native-webview  
-  - and more
+### Ranglar
+- Primary: `#2196F3` (Moviy)
+- Success: `#4CAF50` (Yashil)
+- Warning: `#FF9800` (To'q sariq)
+- Error: `#F44336` (Qizil)
+- Info: `#00BCD4` (Turkuaz)
 
-For a full list of dependencies, see [package.json](./package.json).
+### Tungi Rejim
+- Background: `#121212`
+- Surface: `#1E1E1E`
+- Text: `#FFFFFF`
 
-## Development Tools
+## 📱 Ekran Ko'rinishlari
 
-- TypeScript: ~5.8.3
-- ESLint: ^9.25.0
-- @babel/core: ^7.25.2
+### Safe Area
+- iOS: Notch va Bottom indicator
+- Android: Navigation bar
+- Web: Adaptive layout
 
-## Contributing
+### Responsive
+- Phone: 320px - 414px
+- Tablet: 768px - 1024px
+- Desktop: 1024px+
 
-1. Fork this repository
-2. Create a new branch (`git checkout -b main`)
-3. Commit your changes (`git commit -am 'Add new feature'`)
-4. Push to the branch (`git push origin feature/your-feature`)
-5. Open a Pull Request
+## 🧪 Testing
 
-## License
+### Mock Ma'lumotlar
+`services/mockData.ts` - Test uchun namuna buyurtmalar
 
-This project is private ("private": true). For collaboration inquiries, please contact the author.
+### Real Backend Test
+1. Supabase Dashboard → Table Editor
+2. Manual buyurtma yaratish
+3. Real-time notification tekshirish
+
+## 📞 Support
+
+**Call Center**: +998501017695
+
+## 📄 License
+
+MIT License - ProStaff Worker
+
+## 🔗 Foydali Havolalar
+
+- [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md) - Backend integratsiya yo'riqnomasi
+- [Expo Documentation](https://docs.expo.dev/)
+- [Supabase Documentation](https://supabase.com/docs)
+- [React Native](https://reactnative.dev/)
 
 ---
 
-Feel free to add project screenshots, API documentation, feature descriptions, or any other information as needed.
+**ProStaff Worker** - Ishchilar uchun professional buyurtmalar tizimi! 🚀

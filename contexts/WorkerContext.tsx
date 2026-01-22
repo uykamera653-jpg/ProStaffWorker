@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { storage } from '../services/storage';
 import { Order, generateMockOrder } from '../services/mockData';
+import { notificationService } from '../services/notificationService';
 
 interface WorkerContextType {
   isOnline: boolean;
@@ -22,6 +23,8 @@ interface WorkerContextType {
   setIsDarkMode: (value: boolean) => void;
   language: 'uz' | 'ru';
   setLanguage: (lang: 'uz' | 'ru') => void;
+  rating: number;
+  totalEarnings: number;
 }
 
 export const WorkerContext = createContext<WorkerContextType | undefined>(undefined);
@@ -36,9 +39,13 @@ export function WorkerProvider({ children }: { children: ReactNode }) {
   const [maxPrice, setMaxPriceState] = useState(300000);
   const [isDarkMode, setIsDarkModeState] = useState(false);
   const [language, setLanguageState] = useState<'uz' | 'ru'>('uz');
+  const [rating] = useState(4.8);
+
+  const totalEarnings = completedOrders.length * 250000;
 
   useEffect(() => {
     loadSettings();
+    notificationService.requestPermissions();
   }, []);
 
   useEffect(() => {
@@ -56,6 +63,7 @@ export function WorkerProvider({ children }: { children: ReactNode }) {
           if (categoryData && Math.random() > 0.5) {
             const newOrder = generateMockOrder(categoryData.id, categoryData.name);
             setPendingOrders(prev => [newOrder, ...prev]);
+            notificationService.scheduleOrderNotification(categoryData.name, newOrder.location);
           }
         }
       }, 10000);
@@ -92,6 +100,7 @@ export function WorkerProvider({ children }: { children: ReactNode }) {
       
       setTimeout(() => {
         approveOrder(orderId);
+        notificationService.scheduleApprovalNotification(order.categoryName);
       }, 3000);
     }
   };
@@ -171,6 +180,8 @@ export function WorkerProvider({ children }: { children: ReactNode }) {
         setIsDarkMode,
         language,
         setLanguage,
+        rating,
+        totalEarnings,
       }}
     >
       {children}

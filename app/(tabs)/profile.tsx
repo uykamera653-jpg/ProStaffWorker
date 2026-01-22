@@ -5,10 +5,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWorker } from '../../hooks/useWorker';
 import { colors, spacing, typography } from '../../constants/theme';
 import { config } from '../../constants/config';
+import { RatingCard, PriceRangePicker, NotificationSettings } from '../../components';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { isDarkMode, setIsDarkMode, language, setLanguage, minPrice, maxPrice } = useWorker();
+  const { 
+    isDarkMode, 
+    setIsDarkMode, 
+    language, 
+    setLanguage, 
+    minPrice, 
+    maxPrice,
+    setMinPrice,
+    setMaxPrice,
+    rating,
+    completedOrders,
+  } = useWorker();
 
   const bg = isDarkMode ? colors.backgroundDark : colors.background;
   const surface = isDarkMode ? colors.surfaceDark : colors.surface;
@@ -22,12 +34,36 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: bg, paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: text }]}>Profil</Text>
+        <Text style={[styles.title, { color: text }]}>
+          {language === 'uz' ? 'Profil' : 'Профиль'}
+        </Text>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        <RatingCard 
+          rating={rating}
+          totalJobs={completedOrders.length}
+          isDarkMode={isDarkMode}
+          language={language}
+        />
+
+        <NotificationSettings isDarkMode={isDarkMode} language={language} />
+
+        <PriceRangePicker
+          minPrice={minPrice}
+          maxPrice={maxPrice}
+          onSave={(min, max) => {
+            setMinPrice(min);
+            setMaxPrice(max);
+          }}
+          isDarkMode={isDarkMode}
+          language={language}
+        />
+
         <View style={[styles.section, { backgroundColor: surface }]}>
-          <Text style={[styles.sectionTitle, { color: text }]}>Sozlamalar</Text>
+          <Text style={[styles.sectionTitle, { color: text }]}>
+            {language === 'uz' ? 'Sozlamalar' : 'Настройки'}
+          </Text>
 
           <TouchableOpacity
             style={styles.settingItem}
@@ -40,7 +76,10 @@ export default function ProfileScreen() {
                 color={text}
               />
               <Text style={[styles.settingText, { color: text }]}>
-                {isDarkMode ? 'Tungi rejim' : 'Kunduzgi rejim'}
+                {isDarkMode 
+                  ? (language === 'uz' ? 'Tungi rejim' : 'Темный режим')
+                  : (language === 'uz' ? 'Kunduzgi rejim' : 'Светлый режим')
+                }
               </Text>
             </View>
             <MaterialIcons name="chevron-right" size={24} color={textSecondary} />
@@ -53,7 +92,7 @@ export default function ProfileScreen() {
             <View style={styles.settingLeft}>
               <MaterialIcons name="language" size={24} color={text} />
               <Text style={[styles.settingText, { color: text }]}>
-                Til: {language === 'uz' ? 'O\'zbekcha' : 'Русский'}
+                {language === 'uz' ? 'Til' : 'Язык'}: {language === 'uz' ? 'O\'zbekcha' : 'Русский'}
               </Text>
             </View>
             <MaterialIcons name="chevron-right" size={24} color={textSecondary} />
@@ -71,31 +110,23 @@ export default function ProfileScreen() {
         </View>
 
         <View style={[styles.section, { backgroundColor: surface }]}>
-          <Text style={[styles.sectionTitle, { color: text }]}>Narx diapazoni</Text>
-          <View style={styles.priceInfo}>
-            <Text style={[styles.priceText, { color: text }]}>
-              Minimal: {minPrice.toLocaleString()} so'm
-            </Text>
-            <Text style={[styles.priceText, { color: text }]}>
-              Maksimal: {maxPrice.toLocaleString()} so'm
-            </Text>
-          </View>
-          <Text style={[styles.priceNote, { color: textSecondary }]}>
-            * Narxni kelgusida o'zgartirish imkoniyati qo'shiladi
+          <Text style={[styles.sectionTitle, { color: text }]}>
+            {language === 'uz' ? "Ma'lumot" : 'Информация'}
           </Text>
-        </View>
-
-        <View style={[styles.section, { backgroundColor: surface }]}>
-          <Text style={[styles.sectionTitle, { color: text }]}>Ma'lumot</Text>
           <View style={styles.infoItem}>
             <MaterialIcons name="info-outline" size={20} color={textSecondary} />
             <Text style={[styles.infoText, { color: textSecondary }]}>
-              Versiya: 1.0.0 (Mock ma'lumotlar)
+              {language === 'uz' 
+                ? "Versiya: 1.0.0 (Mock ma'lumotlar)"
+                : 'Версия: 1.0.0 (Тестовые данные)'
+              }
             </Text>
           </View>
           <Text style={[styles.mockNote, { color: colors.warning }]}>
-            ⚠️ Hozirda mock (test) ma'lumotlar ishlatilmoqda. Haqiqiy backend ulanganida
-            real push bildirishnomalar va buyurtmalar keladi.
+            {language === 'uz'
+              ? "⚠️ Hozirda mock (test) ma'lumotlar ishlatilmoqda. Haqiqiy backend ulanganida real push bildirishnomalar va buyurtmalar keladi."
+              : '⚠️ Сейчас используются тестовые данные. После подключения реального backend будут работать настоящие push-уведомления и заказы.'
+            }
           </Text>
         </View>
       </ScrollView>
@@ -152,18 +183,6 @@ const styles = StyleSheet.create({
   phoneNumber: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  priceInfo: {
-    gap: spacing.sm,
-  },
-  priceText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  priceNote: {
-    fontSize: 12,
-    marginTop: spacing.sm,
-    fontStyle: 'italic',
   },
   infoItem: {
     flexDirection: 'row',

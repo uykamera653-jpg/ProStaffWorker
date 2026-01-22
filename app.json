@@ -1,5 +1,11 @@
 {
   "expo": {
+    "notification": {
+      "icon": "./assets/icon.png",
+      "color": "#2196F3",
+      "androidMode": "default",
+      "androidCollapsedTitle": "ProStaff Worker"
+    },
     "name": "onspace-app",
     "slug": "onspace-app",
     "version": "1.0.0",
